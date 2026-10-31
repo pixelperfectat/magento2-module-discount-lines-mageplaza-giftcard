@@ -1,0 +1,67 @@
+{
+    "name": "pixelperfectat/magento2-module-discount-lines-mageplaza-giftcard",
+    "description": "Mageplaza Gift Card adapter for the Discount Lines module: masked, contract-conformant gift card lines on every surface",
+    "type": "magento2-module",
+    "license": "MIT",
+    "prefer-stable": true,
+    "require": {
+        "magento/framework": "^103.0",
+        "magento/module-quote": "^101.0",
+        "magento/module-sales": "^103.0",
+        "php": "^8.3",
+        "pixelperfectat/magento2-module-discount-lines": "^1.0 || @dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6",
+        "pixelperfectat/coding-standard": "^0.1.0"
+    },
+    "suggest": {
+        "mageplaza/module-gift-card": "Mageplaza Gift Card (commercial); the adapter reads only stored data and needs no class of it"
+    },
+    "autoload": {
+        "files": [
+            "src/registration.php"
+        ],
+        "psr-4": {
+            "PixelPerfect\\DiscountLinesMageplazaGiftCard\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PixelPerfect\\DiscountLinesMageplazaGiftCard\\Test\\": "Test/"
+        }
+    },
+    "scripts": {
+        "lint": "parallel-lint --exclude vendor --exclude generated .",
+        "cs": "phpcs",
+        "cs:fix": "phpcbf",
+        "stan": "phpstan analyse",
+        "test": "phpunit",
+        "ci:validate": "@composer validate --no-check-publish",
+        "check": [
+            "@ci:validate",
+            "@lint",
+            "@cs",
+            "@stan",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "cweagans/composer-patches": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "ergebnis/composer-normalize": true,
+            "laminas/laminas-dependency-plugin": true,
+            "magento/*": true,
+            "php-http/discovery": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://repo.magento.com/"
+        }
+    ]
+}
