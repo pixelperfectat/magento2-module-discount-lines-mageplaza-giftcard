@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <sales>
+            <totals_sort>
+                <!-- Mageplaza registers no position: the gift card total sorts before core's grand total (100). -->
+                <gift_card>50</gift_card>
+            </totals_sort>
+        </sales>
+    </default>
+</config>
