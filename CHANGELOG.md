@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Masked gift card lines ("Gift card ••••1234") for Mageplaza gift cards on the cart totals, order, invoice and credit
   memo totals and PDF totals; totals position for the `gift_card` segment.
+- Translations `en_US` and `de_DE`.
 
 ### Changed
 
