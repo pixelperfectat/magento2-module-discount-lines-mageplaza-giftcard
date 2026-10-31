@@ -113,13 +113,14 @@ class TotalsPlugin
         $rows = [];
         foreach (array_values($lines) as $position => $line) {
             $code = $position === 0 ? self::ROW_CODE : self::ROW_CODE . '_' . $position;
-            $rows[$code] = new DataObject(array_merge($original->getData(), [
+            $rows[$code] = new DataObject([
+                ...$original->getData(),
                 'code' => $code,
                 'value' => $sign * $line->getAmount(),
                 'base_value' => $sign * $line->getBaseAmount(),
                 'label' => $line->getLabel(),
                 'discount_line' => $line->toArray(),
-            ]));
+            ]);
         }
 
         return $rows;
