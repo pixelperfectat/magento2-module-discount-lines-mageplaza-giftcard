@@ -91,7 +91,11 @@ class CartTotalRepositoryPlugin
     }
 
     /**
-     * Convert the redeemed amount back to base currency; the quote does not persist the base amount.
+     * Base currency amount of the redeemed gift cards.
+     *
+     * Prefers the base amount Mageplaza collected on the address (`base_gift_card_amount`, negative), which is exact
+     * in multi-currency stores; falls back to converting the amount with the quote rate, which the quote does not
+     * persist as a base amount.
      *
      * @param Quote $quote
      * @param float $amount
@@ -99,6 +103,11 @@ class CartTotalRepositoryPlugin
      */
     private function baseAmount(Quote $quote, float $amount): float
     {
+        $address = $quote->isVirtual() ? $quote->getBillingAddress() : $quote->getShippingAddress();
+        $collected = abs((float)$address->getData('base_gift_card_amount'));
+        if ($collected > 0.0) {
+            return $collected;
+        }
         $rate = (float)$quote->getData('base_to_quote_rate');
 
         return $rate > 0.0 ? round($amount / $rate, 2) : $amount;

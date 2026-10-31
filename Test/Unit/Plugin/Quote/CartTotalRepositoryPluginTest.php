@@ -13,6 +13,7 @@ use Magento\Quote\Api\Data\TotalSegmentExtensionInterface;
 use Magento\Quote\Api\Data\TotalSegmentInterface;
 use Magento\Quote\Api\Data\TotalsInterface;
 use Magento\Quote\Model\Quote;
+use Magento\Quote\Model\Quote\Address;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use PixelPerfect\DiscountLines\Api\ConfigInterface;
@@ -40,6 +41,7 @@ class CartTotalRepositoryPluginTest extends TestCase
     private ConfigInterface&MockObject $config;
     private LoggerInterface&MockObject $logger;
     private Quote&MockObject $quote;
+    private Address&MockObject $address;
     private CartTotalRepositoryPlugin $plugin;
 
     protected function setUp(): void
@@ -49,9 +51,16 @@ class CartTotalRepositoryPluginTest extends TestCase
         $this->logger = $this->createMock(LoggerInterface::class);
         $this->quote = $this->getMockBuilder(Quote::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['getStoreId'])
+            ->onlyMethods(['getStoreId', 'isVirtual', 'getShippingAddress', 'getBillingAddress'])
+            ->getMock();
+        $this->address = $this->getMockBuilder(Address::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getId'])
             ->getMock();
         $this->quote->method('getStoreId')->willReturn(1);
+        $this->quote->method('isVirtual')->willReturn(false);
+        $this->quote->method('getShippingAddress')->willReturn($this->address);
+        $this->quote->method('getBillingAddress')->willReturn($this->address);
         $repository = $this->createMock(CartRepositoryInterface::class);
         $repository->method('getActive')->willReturn($this->quote);
         $this->plugin = new CartTotalRepositoryPlugin(
@@ -155,6 +164,20 @@ class CartTotalRepositoryPluginTest extends TestCase
         $line = $segment->getExtensionAttributes()->getDiscountLines()[0];
         $this->assertSame(20.0, $line->getAmount());
         $this->assertSame(10.0, $line->getBaseAmount());
+    }
+
+    public function testCollectedAddressBaseAmountWinsOverTheRate(): void
+    {
+        $this->quote->setData('mp_gift_cards', '{"AAAA-1111":20}');
+        $this->quote->setData('base_to_quote_rate', 2.0);
+        $this->address->setData('base_gift_card_amount', -12.5);
+        $segment = $this->segment(-20.0, 'Gift Cards');
+
+        $this->process($this->totals(['gift_card' => $segment]));
+
+        $line = $segment->getExtensionAttributes()->getDiscountLines()[0];
+        $this->assertSame(20.0, $line->getAmount());
+        $this->assertSame(12.5, $line->getBaseAmount());
     }
 
     public function testDiscountSegmentIsNeverTouched(): void
