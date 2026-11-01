@@ -73,10 +73,13 @@ class CartTotalRepositoryPluginTest extends TestCase
         );
     }
 
-    private function segment(float $value, string $title): TotalSegmentInterface&MockObject
-    {
+    private function segment(
+        float $value,
+        string $title,
+        ?TotalSegmentExtensionInterface $extension = null
+    ): TotalSegmentInterface&MockObject {
         $holder = new \stdClass();
-        $holder->extension = null;
+        $holder->extension = $extension;
         $holder->title = $title;
         $segment = $this->createMock(TotalSegmentInterface::class);
         $segment->method('getValue')->willReturn($value);
@@ -180,6 +183,98 @@ class CartTotalRepositoryPluginTest extends TestCase
         $this->assertSame(12.5, $line->getBaseAmount());
     }
 
+    public function testExistingExtensionAttributesAreReusedNotReplaced(): void
+    {
+        $this->quote->setData('mp_gift_cards', '{"AAAA-1111":5}');
+        $existing = new TotalSegmentExtension();
+        $segment = $this->segment(-5.0, 'Gift Cards', $existing);
+
+        $this->process($this->totals(['gift_card' => $segment]));
+
+        $this->assertSame($existing, $segment->getExtensionAttributes());
+        $this->assertCount(1, $existing->getDiscountLines());
+    }
+
+    /**
+     * @return array<string, array{mixed, float}>
+     */
+    public static function rates(): array
+    {
+        return [
+            'fractional result is rounded to cents' => [3.0, 3.33],
+            'numeric string rate' => ['3.0000', 3.33],
+            'unusable rate keeps the amount' => ['abc', 10.0],
+            'zero rate keeps the amount' => [0.0, 10.0],
+        ];
+    }
+
+    /**
+     * @dataProvider rates
+     */
+    public function testBaseAmountFromTheRate(mixed $rate, float $expectedBase): void
+    {
+        $this->quote->setData('mp_gift_cards', '{"AAAA-1111":10}');
+        $this->quote->setData('base_to_quote_rate', $rate);
+        $segment = $this->segment(-10.0, 'Gift Cards');
+
+        $this->process($this->totals(['gift_card' => $segment]));
+
+        $line = $segment->getExtensionAttributes()->getDiscountLines()[0];
+        $this->assertSame($expectedBase, $line->getBaseAmount());
+    }
+
+    /**
+     * @return array<string, array{bool, float}>
+     */
+    public static function addresses(): array
+    {
+        return [
+            'virtual quote uses the billing address' => [true, 7.0],
+            'physical quote uses the shipping address' => [false, 3.0],
+        ];
+    }
+
+    /**
+     * @dataProvider addresses
+     */
+    public function testCollectedBaseAmountComesFromTheRightAddress(bool $virtual, float $expectedBase): void
+    {
+        $quote = $this->getMockBuilder(Quote::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getStoreId', 'isVirtual', 'getShippingAddress', 'getBillingAddress'])
+            ->getMock();
+        $shipping = $this->getMockBuilder(Address::class)->disableOriginalConstructor()->onlyMethods(['getId'])
+            ->getMock();
+        $billing = $this->getMockBuilder(Address::class)->disableOriginalConstructor()->onlyMethods(['getId'])
+            ->getMock();
+        $shipping->setData('base_gift_card_amount', -3.0);
+        $billing->setData('base_gift_card_amount', -7.0);
+        $quote->method('getStoreId')->willReturn(1);
+        $quote->method('isVirtual')->willReturn($virtual);
+        $quote->method('getShippingAddress')->willReturn($shipping);
+        $quote->method('getBillingAddress')->willReturn($billing);
+        $quote->setData('mp_gift_cards', '{"AAAA-1111":10}');
+        $repository = $this->createMock(CartRepositoryInterface::class);
+        $repository->method('getActive')->willReturn($quote);
+        $plugin = new CartTotalRepositoryPlugin(
+            $repository,
+            $this->config,
+            new GiftCardLines(new Json(), new CodeMasker(), new ProportionalSplitter()),
+            new GiftCardTitle(),
+            new TotalSegmentExtensionFactory(),
+            $this->logger
+        );
+        $segment = $this->segment(-10.0, 'Gift Cards');
+
+        $plugin->afterGet(
+            $this->createMock(CartTotalRepositoryInterface::class),
+            $this->totals(['gift_card' => $segment]),
+            7
+        );
+
+        $this->assertSame($expectedBase, $segment->getExtensionAttributes()->getDiscountLines()[0]->getBaseAmount());
+    }
+
     public function testDiscountSegmentIsNeverTouched(): void
     {
         $this->quote->setData('mp_gift_cards', '{"AAAA-1111":5}');
@@ -194,6 +289,7 @@ class CartTotalRepositoryPluginTest extends TestCase
     public function testCartWithoutGiftCardSegmentIsUnchanged(): void
     {
         $totals = $this->totals(['subtotal' => $this->segment(10.0, 'Subtotal')]);
+        $this->logger->expects($this->never())->method('error');
 
         $this->assertSame($totals, $this->process($totals));
     }
@@ -239,7 +335,8 @@ class CartTotalRepositoryPluginTest extends TestCase
     public function testFailureIsLoggedAndSegmentKept(): void
     {
         $repository = $this->createMock(CartRepositoryInterface::class);
-        $repository->method('getActive')->willThrowException(new \RuntimeException('boom'));
+        $failure = new \RuntimeException('boom');
+        $repository->method('getActive')->willThrowException($failure);
         $plugin = new CartTotalRepositoryPlugin(
             $repository,
             $this->config,
@@ -248,7 +345,10 @@ class CartTotalRepositoryPluginTest extends TestCase
             new TotalSegmentExtensionFactory(),
             $this->logger
         );
-        $this->logger->expects($this->once())->method('error');
+        $this->logger->expects($this->once())->method('error')->with(
+            'Discount lines: gift card lines could not be added to the cart totals: boom',
+            ['exception' => $failure]
+        );
         $segment = $this->segment(-5.0, 'Gift Cards');
 
         $plugin->afterGet(

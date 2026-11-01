@@ -27,6 +27,15 @@ class GiftCardTitleTest extends TestCase
         $this->assertSame('Gift cards (••••1111, ••••2222)', $title);
     }
 
+    public function testLineWithoutCodeContributesAnEmptyEntry(): void
+    {
+        $withoutCode = new DiscountLine('gift_card', null, null, 'Gift card', 5.0, 5.0);
+
+        $title = (new GiftCardTitle())->title([$withoutCode, $this->line('••••2222')]);
+
+        $this->assertSame('Gift cards (, ••••2222)', $title);
+    }
+
     public function testNoLinesFallBackToTheGenericTitle(): void
     {
         $this->assertSame('Gift Cards', (new GiftCardTitle())->title([]));

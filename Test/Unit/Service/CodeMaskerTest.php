@@ -50,6 +50,11 @@ class CodeMaskerTest extends TestCase
         $this->assertSame('••••äöüß', (new CodeMasker())->mask('GUTSCHEIN-äöüß'));
     }
 
+    public function testMultibyteCharactersBeforeTheVisiblePartDoNotShiftIt(): void
+    {
+        $this->assertSame('••••1234', (new CodeMasker())->mask('äöü-1234'));
+    }
+
     public function testMaskAndVisibleLengthAreConfigurable(): void
     {
         $this->assertSame('******12', (new CodeMasker('*', 2, 6))->mask('ABCDEF12'));
