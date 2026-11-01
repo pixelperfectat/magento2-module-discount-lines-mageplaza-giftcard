@@ -44,7 +44,7 @@ class TotalsPlugin
      * @param array<int|string, DataObject>|null $result Null while the block is not initialised
      * @param array<int|string, mixed>|string|null $area
      * @return array<int|string, DataObject>|null
-     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     * @SuppressWarnings("PHPMD.UnusedFormalParameter")
      */
     public function afterGetTotals(Totals $subject, $result, $area = null)
     {
