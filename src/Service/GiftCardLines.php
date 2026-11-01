@@ -44,7 +44,7 @@ class GiftCardLines implements GiftCardLinesInterface
         }
         $lines = [];
         foreach ($this->cards($storedCards) as $code => $amount) {
-            $masked = $this->masker->mask($code);
+            $masked = $this->masker->mask((string)$code);
             $lines[] = new DiscountLine(
                 DiscountLineInterface::KIND_GIFT_CARD,
                 null,
@@ -63,7 +63,7 @@ class GiftCardLines implements GiftCardLinesInterface
      * Read the redeemed cards: code => amount, cards without a redeemed amount are dropped.
      *
      * @param string|null $storedCards
-     * @return array<string, float>
+     * @return array<int|string, float>
      */
     private function cards(?string $storedCards): array
     {
@@ -81,8 +81,9 @@ class GiftCardLines implements GiftCardLinesInterface
 
         $cards = [];
         foreach ($data as $code => $amount) {
-            if (is_numeric($amount) && (float)$amount > self::EPSILON) {
-                $cards[(string)$code] = (float)$amount;
+            $redeemed = is_numeric($amount) ? (float)$amount : 0.0;
+            if ($redeemed > self::EPSILON) {
+                $cards[$code] = $redeemed;
             }
         }
 

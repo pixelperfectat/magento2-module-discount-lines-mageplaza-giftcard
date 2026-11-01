@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PixelPerfect\DiscountLinesMageplazaGiftCard\Test\Unit\Service;
 
 use Magento\Framework\Serialize\Serializer\Json;
+use Magento\Framework\Serialize\SerializerInterface;
 use PHPUnit\Framework\TestCase;
 use PixelPerfect\DiscountLines\Service\ProportionalSplitter;
 use PixelPerfect\DiscountLinesMageplazaGiftCard\Service\CodeMasker;
@@ -110,6 +111,63 @@ class GiftCardLinesTest extends TestCase
     public function testNoLinesWhenNothingWasRedeemed(): void
     {
         $this->assertSame([], $this->lines->build('{"AAAA-1111":5}', 0.0, 0.0));
+    }
+
+    public function testTotalAtTheEpsilonIsTreatedAsNothingRedeemed(): void
+    {
+        $this->assertSame([], $this->lines->build('{"AAAA-1111":5}', 0.00001, 0.00001));
+    }
+
+    public function testBaseTotalAtTheEpsilonFallsBackToTheOrderTotal(): void
+    {
+        $lines = $this->lines->build('{"AAAA-1111":5}', 5.0, 0.00001);
+
+        $this->assertSame(5.0, $lines[0]->getBaseAmount());
+    }
+
+    public function testCardAtTheEpsilonIsDropped(): void
+    {
+        $lines = $this->lines->build('{"AAAA-1111":0.00001,"BBBB-2222":5}', 5.0, 5.0);
+
+        $this->assertCount(1, $lines);
+        $this->assertSame('••••2222', $lines[0]->getCode());
+    }
+
+    public function testNumericStringAmountIsUsedAsNumberAndNonNumericIsDropped(): void
+    {
+        $lines = $this->lines->build('{"AAAA-1111":"abc","BBBB-2222":"5.5"}', 5.5, 5.5);
+
+        $this->assertCount(1, $lines);
+        $this->assertSame('••••2222', $lines[0]->getCode());
+        $this->assertSame(5.5, $lines[0]->getAmount());
+    }
+
+    public function testAllDigitCodeIsMaskedLikeAnyOther(): void
+    {
+        $lines = $this->lines->build('{"12345678":5}', 5.0, 5.0);
+
+        $this->assertSame('••••5678', $lines[0]->getCode());
+        $this->assertSame('Gift card ••••5678', $lines[0]->getLabel());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function blankData(): array
+    {
+        return ['empty' => [''], 'spaces' => ['   '], 'newline' => ["\n"]];
+    }
+
+    /**
+     * @dataProvider blankData
+     */
+    public function testBlankStoredDataIsNotEvenParsed(string $stored): void
+    {
+        $serializer = $this->createMock(SerializerInterface::class);
+        $serializer->expects($this->never())->method('unserialize');
+        $lines = new GiftCardLines($serializer, new CodeMasker(), new ProportionalSplitter());
+
+        $this->assertSame([], $lines->build($stored, 20.0, 20.0));
     }
 
     public function testMissingBaseTotalFallsBackToTheOrderTotal(): void
