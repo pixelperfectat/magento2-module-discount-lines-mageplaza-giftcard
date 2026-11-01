@@ -12,7 +12,9 @@ use Magento\Sales\Model\Order\Invoice;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use PixelPerfect\DiscountLines\Api\ConfigInterface;
+use PixelPerfect\DiscountLines\Model\Data\DiscountLine;
 use PixelPerfect\DiscountLines\Service\ProportionalSplitter;
+use PixelPerfect\DiscountLinesMageplazaGiftCard\Api\Service\GiftCardLinesInterface;
 use PixelPerfect\DiscountLinesMageplazaGiftCard\Plugin\Sales\Block\Order\TotalsPlugin;
 use PixelPerfect\DiscountLinesMageplazaGiftCard\Service\CodeMasker;
 use PixelPerfect\DiscountLinesMageplazaGiftCard\Service\GiftCardLines;
@@ -144,6 +146,58 @@ class TotalsPluginTest extends TestCase
         $this->assertSame(-7.5, $result['gift_card_1']->getValue());
     }
 
+    public function testPositiveRowKeepsItsSign(): void
+    {
+        $block = $this->block($this->order('{"AAAA-1111":5,"BBBB-2222":15}'));
+
+        $result = $this->plugin->afterGetTotals($block, $this->totals(20.0, 18.0));
+
+        $this->assertSame(5.0, $result['gift_card']->getValue());
+        $this->assertSame(15.0, $result['gift_card_1']->getValue());
+    }
+
+    public function testSmallPositiveRowKeepsItsSign(): void
+    {
+        $block = $this->block($this->order('{"AAAA-1111":0.5}'));
+
+        $result = $this->plugin->afterGetTotals($block, $this->totals(0.5, 0.5));
+
+        $this->assertSame(0.5, $result['gift_card']->getValue());
+    }
+
+    public function testRowsKeepTheOtherDataOfTheMageplazaRow(): void
+    {
+        $block = $this->block($this->order('{"AAAA-1111":20}'));
+        $totals = $this->totals(-20.0, -20.0);
+        $totals['gift_card']->setData('block_name', 'custom_block');
+
+        $row = $this->plugin->afterGetTotals($block, $totals)['gift_card'];
+
+        $this->assertSame('custom_block', $row->getData('block_name'));
+        $this->assertSame('gift_card', $row->getData('code'));
+    }
+
+    public function testRowsAreNumberedByPositionNotByTheKeysOfTheLines(): void
+    {
+        $lines = [
+            4 => new DiscountLine('gift_card', null, '••••1111', 'Gift card ••••1111', 5.0, 5.0),
+            9 => new DiscountLine('gift_card', null, '••••2222', 'Gift card ••••2222', 15.0, 15.0),
+        ];
+        $giftCardLines = $this->createMock(GiftCardLinesInterface::class);
+        $giftCardLines->method('build')->willReturn($lines);
+        $plugin = new TotalsPlugin($this->config, $giftCardLines, $this->logger);
+
+        $result = $plugin->afterGetTotals(
+            $this->block($this->order('{"AAAA-1111":20}')),
+            $this->totals(-20.0, -20.0)
+        );
+
+        $this->assertSame(
+            ['subtotal', 'gift_card', 'gift_card_1', 'gift_credit', 'grand_total'],
+            array_keys($result)
+        );
+    }
+
     public function testRowOrderAndOtherRowsAreKept(): void
     {
         $block = $this->block($this->order('{"AAAA-1111":20}'));
@@ -169,6 +223,7 @@ class TotalsPluginTest extends TestCase
     public function testNothingIsInsertedWhenThereIsNoGiftCardRow(): void
     {
         $totals = ['subtotal' => new DataObject(['code' => 'subtotal', 'value' => 1.0, 'label' => 'Subtotal'])];
+        $this->logger->expects($this->never())->method('error');
 
         $this->assertSame(
             $totals,
@@ -204,7 +259,10 @@ class TotalsPluginTest extends TestCase
         $block = $this->createMock(Totals::class);
         $block->method('getSource')->willThrowException(new \RuntimeException('boom'));
         $totals = $this->totals(-20.0, -20.0);
-        $this->logger->expects($this->once())->method('error');
+        $this->logger->expects($this->once())->method('error')->with(
+            'Discount lines: gift card totals rendering failed, Mageplaza row kept.',
+            $this->callback(static fn(array $context): bool => $context['exception'] instanceof \RuntimeException)
+        );
 
         $this->assertSame($totals, $this->plugin->afterGetTotals($block, $totals));
     }

@@ -56,7 +56,8 @@ class GiftCards extends DefaultTotal
                     abs((float)$source->getData('base_gift_card_amount'))
                 );
                 if ($lines !== []) {
-                    $sign = $amount > 0.0 ? 1.0 : -1.0;
+                    // The lines exist only for a non-zero amount, so the sign is never 0.
+                    $sign = $amount <=> 0.0;
                     $fontSize = $this->getFontSize() ? $this->getFontSize() : 7;
                     $entries = [];
                     foreach ($lines as $line) {

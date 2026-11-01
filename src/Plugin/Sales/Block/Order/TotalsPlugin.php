@@ -109,7 +109,8 @@ class TotalsPlugin
     private function buildRows(DataObject $original, array $lines): array
     {
         // Mageplaza books the amounts negative on every document; keep whatever sign the row carries.
-        $sign = (float)$original->getData('value') > 0.0 ? 1.0 : -1.0;
+        // The lines exist only for a non-zero row value, so the sign is never 0.
+        $sign = $original->getData('value') <=> 0.0;
         $rows = [];
         foreach (array_values($lines) as $position => $line) {
             $code = $position === 0 ? self::ROW_CODE : self::ROW_CODE . '_' . $position;

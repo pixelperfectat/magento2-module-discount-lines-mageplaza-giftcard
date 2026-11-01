@@ -35,8 +35,16 @@ class GiftCardsTest extends TestCase
         $this->config->method('isEnabled')->willReturn(true);
     }
 
-    private function total(string $cards, float $amount = -20.0, ?ConfigInterface $config = null): GiftCards
-    {
+    /**
+     * @param array<string, mixed> $extraData
+     */
+    private function total(
+        string $cards,
+        float|string $amount = -20.0,
+        ?ConfigInterface $config = null,
+        array $extraData = [],
+        ?LoggerInterface $logger = null
+    ): GiftCards {
         $order = $this->getMockBuilder(Order::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['formatPriceTxt'])
@@ -58,8 +66,8 @@ class GiftCardsTest extends TestCase
             $this->createMock(CollectionFactory::class),
             $config ?? $this->config,
             new GiftCardLines(new Json(), new CodeMasker(), new ProportionalSplitter()),
-            $this->createMock(LoggerInterface::class),
-            [
+            $logger ?? $this->createMock(LoggerInterface::class),
+            $extraData + [
                 'order' => $order,
                 'source' => $source,
                 'title' => 'Gift Cards',
@@ -103,6 +111,57 @@ class GiftCardsTest extends TestCase
         $config->method('isEnabled')->willReturn(false);
 
         $entries = $this->total('{"AAAA-1111":20}', -20.0, $config)->getTotalsForDisplay();
+
+        $this->assertSame('Gift Cards:', $entries[0]['label']);
+    }
+
+    public function testPositiveAmountKeepsItsSign(): void
+    {
+        $entries = $this->total('{"AAAA-1111":20}', 20.0)->getTotalsForDisplay();
+
+        $this->assertSame([['amount' => 'EUR 20.00', 'label' => 'Gift card ••••1111:', 'font_size' => 7]], $entries);
+    }
+
+    public function testSmallPositiveAmountKeepsItsSign(): void
+    {
+        $entries = $this->total('{"AAAA-1111":0.5}', 0.5)->getTotalsForDisplay();
+
+        $this->assertSame('EUR 0.50', $entries[0]['amount']);
+    }
+
+    public function testAmountReadAsStringStillGivesTheMaskedEntry(): void
+    {
+        $entries = $this->total('{"AAAA-1111":20}', '-20.0000')->getTotalsForDisplay();
+
+        $this->assertSame([['amount' => 'EUR -20.00', 'label' => 'Gift card ••••1111:', 'font_size' => 7]], $entries);
+    }
+
+    public function testConfiguredFontSizeIsUsed(): void
+    {
+        $entries = $this->total('{"AAAA-1111":20}', -20.0, null, ['font_size' => 9])->getTotalsForDisplay();
+
+        $this->assertSame(9, $entries[0]['font_size']);
+    }
+
+    public function testFontSizeDefaultsToSevenWhenNoneIsConfigured(): void
+    {
+        $entries = $this->total('{"AAAA-1111":20}', -20.0, null, ['font_size' => 0])->getTotalsForDisplay();
+
+        $this->assertSame(7, $entries[0]['font_size']);
+    }
+
+    public function testFailureIsLoggedWithTheExceptionAndTheMageplazaEntryKept(): void
+    {
+        $failure = new \RuntimeException('boom');
+        $config = $this->createMock(ConfigInterface::class);
+        $config->method('isEnabled')->willThrowException($failure);
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('error')->with(
+            'Discount lines: gift card PDF total failed, Mageplaza entry kept.',
+            ['exception' => $failure]
+        );
+
+        $entries = $this->total('{"AAAA-1111":20}', -20.0, $config, [], $logger)->getTotalsForDisplay();
 
         $this->assertSame('Gift Cards:', $entries[0]['label']);
     }
