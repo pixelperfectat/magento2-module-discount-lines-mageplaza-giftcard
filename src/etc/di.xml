@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <preference for="PixelPerfect\DiscountLinesMageplazaGiftCard\Api\Service\CodeMaskerInterface"
+                type="PixelPerfect\DiscountLinesMageplazaGiftCard\Service\CodeMasker"/>
+    <preference for="PixelPerfect\DiscountLinesMageplazaGiftCard\Api\Service\GiftCardLinesInterface"
+                type="PixelPerfect\DiscountLinesMageplazaGiftCard\Service\GiftCardLines"/>
+    <preference for="PixelPerfect\DiscountLinesMageplazaGiftCard\Api\Service\GiftCardTitleInterface"
+                type="PixelPerfect\DiscountLinesMageplazaGiftCard\Service\GiftCardTitle"/>
+
+    <type name="Magento\Quote\Api\CartTotalRepositoryInterface">
+        <plugin name="pp_discount_lines_gift_card_cart_totals"
+                type="PixelPerfect\DiscountLinesMageplazaGiftCard\Plugin\Quote\CartTotalRepositoryPlugin"/>
+    </type>
+
+    <type name="Magento\Sales\Block\Order\Totals">
+        <plugin name="pp_discount_lines_gift_card_totals"
+                type="PixelPerfect\DiscountLinesMageplazaGiftCard\Plugin\Sales\Block\Order\TotalsPlugin"/>
+    </type>
+</config>
